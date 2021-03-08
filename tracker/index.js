@@ -6,14 +6,17 @@ import { removeTrailingSlash } from '../lib/url';
     screen: { width, height },
     navigator: { language },
     location: { hostname, pathname, search },
+    localStorage,
     sessionStorage,
     document,
     history,
   } = window;
 
   const script = document.querySelector('script[data-website-id]');
-  const attr = key => script && script.getAttribute(key);
 
+  if (!script) return;
+
+  const attr = key => script && script.getAttribute(key);
   const website = attr('data-website-id');
   const hostUrl = attr('data-host-url');
   const autoTrack = attr('data-auto-track') !== 'false';
@@ -21,21 +24,18 @@ import { removeTrailingSlash } from '../lib/url';
   const useCache = attr('data-cache');
   const domains = attr('data-domains');
 
-  if (
-    !script ||
+  const disableTracking =
+    localStorage.getItem('umami.disabled') ||
     (dnt && doNotTrack()) ||
     (domains &&
       !domains
         .split(',')
         .map(n => n.trim())
-        .includes(hostname))
-  ) {
-    return;
-  }
+        .includes(hostname));
 
   const root = hostUrl
     ? removeTrailingSlash(hostUrl)
-    : new URL(script.src).href.split('/').slice(0, -1).join('/');
+    : script.src.split('/').slice(0, -1).join('/');
   const screen = `${width}x${height}`;
   const listeners = [];
   let currentUrl = `${pathname}${search}`;
@@ -58,6 +58,8 @@ import { removeTrailingSlash } from '../lib/url';
   };
 
   const collect = (type, params, uuid) => {
+    if (disableTracking) return;
+
     const key = 'umami.cache';
 
     const payload = {
@@ -74,7 +76,7 @@ import { removeTrailingSlash } from '../lib/url';
       });
     }
 
-    return post(
+    post(
       `${root}/api/collect`,
       {
         type,
@@ -110,7 +112,7 @@ import { removeTrailingSlash } from '../lib/url';
   const addEvents = () => {
     document.querySelectorAll("[class*='umami--']").forEach(element => {
       element.className.split(' ').forEach(className => {
-        if (/^umami--([a-z]+)--([a-z0-9_]+[a-z0-9-_]+)$/.test(className)) {
+        if (/^umami--([a-z]+)--([\w]+[\w-]*)$/.test(className)) {
           const [, type, value] = className.split('--');
           const listener = () => trackEvent(value, type);
 
@@ -131,19 +133,22 @@ import { removeTrailingSlash } from '../lib/url';
   /* Handle history changes */
 
   const handlePush = (state, title, url) => {
+    if (!url) return;
+
     removeEvents();
 
     currentRef = currentUrl;
     const newUrl = url.toString();
 
     if (newUrl.substring(0, 4) === 'http') {
-      const { pathname, search } = new URL(newUrl);
-      currentUrl = `${pathname}${search}`;
+      currentUrl = '/' + newUrl.split('/').splice(3).join('/');
     } else {
       currentUrl = newUrl;
     }
 
-    trackView(currentUrl, currentRef);
+    if (currentUrl !== currentRef) {
+      trackView(currentUrl, currentRef);
+    }
 
     setTimeout(addEvents, 300);
   };
@@ -154,13 +159,15 @@ import { removeTrailingSlash } from '../lib/url';
     const umami = event_value => trackEvent(event_value);
     umami.trackView = trackView;
     umami.trackEvent = trackEvent;
+    umami.addEvents = addEvents;
+    umami.removeEvents = removeEvents;
 
     window.umami = umami;
   }
 
   /* Start */
 
-  if (autoTrack) {
+  if (autoTrack && !disableTracking) {
     history.pushState = hook(history, 'pushState', handlePush);
     history.replaceState = hook(history, 'replaceState', handlePush);
 

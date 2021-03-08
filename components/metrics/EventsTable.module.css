@@ -1,7 +1,6 @@
-.type {
-  font-size: var(--font-size-small);
-  padding: 2px 4px;
-  border: 1px solid var(--gray300);
-  border-radius: 4px;
-  margin-right: 10px;
+.filter {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 15px;
 }

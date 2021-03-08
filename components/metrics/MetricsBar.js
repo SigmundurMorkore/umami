@@ -5,12 +5,15 @@ import Loading from 'components/common/Loading';
 import ErrorMessage from 'components/common/ErrorMessage';
 import useFetch from 'hooks/useFetch';
 import useDateRange from 'hooks/useDateRange';
-import { formatShortTime, formatNumber, formatLongNumber } from 'lib/format';
 import usePageQuery from 'hooks/usePageQuery';
+import useShareToken from 'hooks/useShareToken';
+import { formatShortTime, formatNumber, formatLongNumber } from 'lib/format';
+import { TOKEN_HEADER } from 'lib/constants';
 import MetricCard from './MetricCard';
 import styles from './MetricsBar.module.css';
 
-export default function MetricsBar({ websiteId, token, className }) {
+export default function MetricsBar({ websiteId, className }) {
+  const shareToken = useShareToken();
   const [dateRange] = useDateRange(websiteId);
   const { startDate, endDate, modified } = dateRange;
   const [format, setFormat] = useState(true);
@@ -19,16 +22,16 @@ export default function MetricsBar({ websiteId, token, className }) {
   } = usePageQuery();
 
   const { data, error, loading } = useFetch(
-    `/api/website/${websiteId}/metrics`,
+    `/api/website/${websiteId}/stats`,
     {
-      start_at: +startDate,
-      end_at: +endDate,
-      url,
-      token,
+      params: {
+        start_at: +startDate,
+        end_at: +endDate,
+        url,
+      },
+      headers: { [TOKEN_HEADER]: shareToken?.token },
     },
-    {
-      update: [modified],
-    },
+    [url, modified],
   );
 
   const formatFunc = format ? formatLongNumber : formatNumber;
@@ -38,6 +41,7 @@ export default function MetricsBar({ websiteId, token, className }) {
   }
 
   const { pageviews, uniques, bounces, totaltime } = data || {};
+  const num = Math.min(uniques, bounces);
 
   return (
     <div className={classNames(styles.bar, className)} onClick={handleSetFormat}>
@@ -57,7 +61,7 @@ export default function MetricsBar({ websiteId, token, className }) {
           />
           <MetricCard
             label={<FormattedMessage id="metrics.bounce-rate" defaultMessage="Bounce rate" />}
-            value={pageviews ? (bounces / pageviews) * 100 : 0}
+            value={uniques ? (num / uniques) * 100 : 0}
             format={n => Number(n).toFixed(0) + '%'}
           />
           <MetricCard
