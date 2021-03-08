@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { FormattedMessage } from 'react-intl';
+import { FormattedMessage, useIntl } from 'react-intl';
 import { FixedSizeList } from 'react-window';
 import firstBy from 'thenby';
-import { format } from 'date-fns';
 import Icon from 'components/common/Icon';
 import Tag from 'components/common/Tag';
 import Dot from 'components/common/Dot';
 import FilterButtons from 'components/common/FilterButtons';
+import NoData from 'components/common/NoData';
+import { devices } from 'components/messages';
 import useLocale from 'hooks/useLocale';
 import useCountryNames from 'hooks/useCountryNames';
 import { BROWSERS } from 'lib/constants';
@@ -14,6 +15,7 @@ import Bolt from 'assets/bolt.svg';
 import Visitor from 'assets/visitor.svg';
 import Eye from 'assets/eye.svg';
 import { stringToColor } from 'lib/format';
+import { dateFormat } from 'lib/date';
 import styles from './RealtimeLog.module.css';
 
 const TYPE_ALL = 0;
@@ -27,7 +29,8 @@ const TYPE_ICONS = {
   [TYPE_EVENT]: <Bolt />,
 };
 
-export default function RealtimeLog({ data, websites }) {
+export default function RealtimeLog({ data, websites, websiteId }) {
+  const intl = useIntl();
   const [locale] = useLocale();
   const countryNames = useCountryNames(locale);
   const [filter, setFilter] = useState(TYPE_ALL);
@@ -85,7 +88,7 @@ export default function RealtimeLog({ data, websites }) {
   }
 
   function getWebsite({ website_id }) {
-    return websites.find(n => n.website_id === website_id)?.name;
+    return websites.find(n => n.website_id === website_id);
   }
 
   function getDetail({
@@ -98,6 +101,7 @@ export default function RealtimeLog({ data, websites }) {
     os,
     country,
     device,
+    website_id,
   }) {
     if (event_type) {
       return (
@@ -107,7 +111,17 @@ export default function RealtimeLog({ data, websites }) {
       );
     }
     if (view_id) {
-      return url;
+      const domain = getWebsite({ website_id })?.domain;
+      return (
+        <a
+          className={styles.link}
+          href={`//${domain}${url}`}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          {url}
+        </a>
+      );
     }
     if (session_id) {
       return (
@@ -115,10 +129,15 @@ export default function RealtimeLog({ data, websites }) {
           id="message.log.visitor"
           defaultMessage="Visitor from {country} using {browser} on {os} {device}"
           values={{
-            country: <b>{countryNames[country]}</b>,
-            browser: BROWSERS[browser],
-            os,
-            device,
+            country: (
+              <b>
+                {countryNames[country] ||
+                  intl.formatMessage({ id: 'label.unknown', defaultMessage: 'Unknown' })}
+              </b>
+            ),
+            browser: <b>{BROWSERS[browser]}</b>,
+            os: <b>{os}</b>,
+            device: <b>{intl.formatMessage(devices[device])?.toLowerCase()}</b>,
           }}
         />
       );
@@ -126,7 +145,7 @@ export default function RealtimeLog({ data, websites }) {
   }
 
   function getTime({ created_at }) {
-    return format(new Date(created_at), 'h:mm:ss');
+    return dateFormat(new Date(created_at), 'pp', locale);
   }
 
   function getColor(row) {
@@ -147,7 +166,9 @@ export default function RealtimeLog({ data, websites }) {
           <Icon className={styles.icon} icon={getIcon(row)} />
           {getDetail(row)}
         </div>
-        <div className={styles.website}>{getWebsite(row)}</div>
+        {!websiteId && websites.length > 1 && (
+          <div className={styles.website}>{getWebsite(row)?.domain}</div>
+        )}
       </div>
     );
   };
@@ -159,9 +180,12 @@ export default function RealtimeLog({ data, websites }) {
         <FormattedMessage id="label.realtime-logs" defaultMessage="Realtime logs" />
       </div>
       <div className={styles.body}>
-        <FixedSizeList height={400} itemCount={logs.length} itemSize={40}>
-          {Row}
-        </FixedSizeList>
+        {logs?.length === 0 && <NoData />}
+        {logs?.length > 0 && (
+          <FixedSizeList height={400} itemCount={logs.length} itemSize={40}>
+            {Row}
+          </FixedSizeList>
+        )}
       </div>
     </div>
   );
