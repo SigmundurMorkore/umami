@@ -21,7 +21,7 @@ export default function Header() {
         <div className="col-6 col-lg-3 order-1 order-lg-1">
           <div className={styles.title}>
             <Icon icon={<Logo />} size="large" className={styles.logo} />
-            <Link href={user ? '/' : 'https://umami.is'}>umami</Link>
+            <Link href={user ? '/' : 'https://analytics.fo'}>Analytics.fo</Link>
           </div>
         </div>
         <div className="col-12 col-lg-6 order-3 order-lg-2">
